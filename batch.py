@@ -1,49 +1,50 @@
 import pandas as pd
-import numpy_financial as npf
+import numpy as np
 
+# Load data
+df = pd.read_csv("data.csv")
 
-def process_investments(df, rate):
-    """
-    Process a DataFrame of cashflows and return NPV, IRR, and decision.
+def calculate_npv(rate, cashflows):
+    return sum(cf / (1 + rate) ** i for i, cf in enumerate(cashflows))
 
-    Parameters:
-    df (pd.DataFrame): Each row = one investment (CF0, CF1, ...)
-    rate (float): Discount rate (e.g. 0.10 for 10%)
+def calculate_irr(cashflows):
+    try:
+        return np.irr(cashflows)
+    except:
+        return None
 
-    Returns:
-    pd.DataFrame: Results with NPV, IRR, Decision
-    """
+results = []
 
-    results = []
+for _, row in df.iterrows():
+    initial = -row["initial_investment"]
+    cashflows = [
+        initial,
+        row["year1"],
+        row["year2"],
+        row["year3"],
+        row["year4"],
+        row["year5"]
+    ]
 
-    for _, row in df.iterrows():
-        cashflows = row.values.astype(float)
+    base_rate = row["discount_rate"]
+    hurdle_rate = base_rate + 0.05  # +5%
 
-        # Calculations
-        npv = npf.npv(rate, cashflows)
-        irr = npf.irr(cashflows)
+    irr = calculate_irr(cashflows)
 
-        # Decision rule
-        decision = "Accept" if npv > 0 else "Reject"
+    decision = "Reject"
+    if irr is not None and irr >= hurdle_rate:
+        decision = "Accept"
 
-        results.append({
-            "NPV": round(npv, 2),
-            "IRR (%)": round(irr * 100, 2) if irr is not None else None,
-            "Decision": decision
-        })
+    results.append({
+        "investment_id": row["investment_id"],
+        "discount_rate": base_rate,
+        "hurdle_rate": hurdle_rate,
+        "IRR": irr,
+        "decision": decision
+    })
 
-    return pd.DataFrame(results)
+# Save results
+results_df = pd.DataFrame(results)
+results_df.to_csv("results.csv", index=False)
 
-
-# Optional CLI execution (useful for testing)
-if __name__ == "__main__":
-    df = pd.read_csv("data.csv")
-    rate = 0.10
-
-    results = process_investments(df, rate)
-
-    print("\nResults:\n")
-    print(results)
-
-    results.to_csv("results.csv", index=False)
-    print("\nSaved to results.csv")
+print("Batch processing complete. Results saved to results.csv")
